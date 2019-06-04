@@ -54,8 +54,8 @@
   (desc :string))
 
 (defcfun "rd_kafka_get_err_descs" :void
-  (rd-kafka-err-desc :pointer)
-  (cntp :pointer))
+  (rd-kafka-err-desc (:pointer (:pointer (:struct rd-kafka-err-desc))))
+  (cntp (:pointer size-t)))
 
 (defvar *num->err* (make-hash-table :test #'eq)
   "Hash-table to map enum numbers to rd-kafka-resp-err objects.")
@@ -80,14 +80,14 @@
 		(proclaim `(special ,enum-symbol)))))
 
   (with-foreign-objects
-      ((desc :pointer)
-       (count :pointer))
+      ((desc '(:pointer (:pointer (:struct rd-kafka-err-desc))))
+       (count '(:pointer size-t)))
 
     (rd-kafka-get-err-descs desc count)
 
     (loop
        with *count = (mem-ref count 'size-t)
-       with *desc = (mem-ref desc :pointer)
+       with *desc = (mem-ref desc '(:pointer (:struct rd-kafka-err-desc)))
 
        for i below *count
 
@@ -121,7 +121,7 @@
 (defcfun "rd_kafka_errno" :int)
 
 (defcfun "rd_kafka_fatal_error" rd-kafka-resp-err
-  (rdk :pointer)
+  (rk (:pointer rd-kafka-type))
   (errstr :string)
   (errstr-size size-t))
 
@@ -129,64 +129,68 @@
   (topic :string)
   (partition :int32)
   (offset :int64)
-  (metadata :pointer)
+  (metadata (:pointer :void))
   (metadata-size size-t)
-  (opaque :pointer)
+  (opaque (:pointer :void))
   (err rd-kafka-resp-err)
-  (private :pointer))
+  (private (:pointer :void)))
 
 (defcfun "rd_kafka_topic_partition_destroy" :void
-  (rktpar :pointer))
+  (rktpar (:pointer (:struct rd-kafka-topic-partition))))
 
 (defcstruct rd-kafka-topic-partition-list
   (cnt :int)
   (size :int)
-  (elems :pointer))
+  (elems (:pointer (:struct rd-kafka-topic-partition))))
 
-(defcfun "rd_kafka_topic_partition_list_new" :pointer
+(defcfun "rd_kafka_topic_partition_list_new"
+    (:pointer (:struct rd-kafka-topic-partition-list))
   (size :int))
 
 (defcfun "rd_kafka_topic_partition_list_destroy" :void
-  (rkparlist :pointer))
+  (rkparlist (:pointer (:struct rd-kafka-topic-partition-list))))
 
-(defcfun "rd_kafka_topic_partition_list_add" :pointer
-  (rktparlist :pointer)
+(defcfun "rd_kafka_topic_partition_list_add"
+    (:pointer (:struct rd-kafka-topic-partition))
+  (rktparlist (:pointer (:struct rd-kafka-topic-partition-list)))
   (topic :string)
   (partition :int32))
 
 (defcfun "rd_kafka_topic_partition_list_add_range" :void
-  (rktparlist :pointer)
+  (rktparlist (:pointer (:struct rd-kafka-topic-partition-list)))
   (topic :string)
   (start :int32)
   (stop :int32))
 
 (defcfun "rd_kafka_topic_partition_list_del" :int
-  (rktparlist :pointer)
+  (rktparlist (:pointer (:struct rd-kafka-topic-partition-list)))
   (topic :string)
   (partition :int32))
 
 (defcfun "rd_kafka_topic_partition_list_del_by_idx" :int
-  (rktparlist :pointer)
+  (rktparlist (:pointer (:struct rd-kafka-topic-partition-list)))
   (idx :int))
 
-(defcfun "rd_kafka_topic_partition_list_copy" :pointer
-  (src :pointer))
+(defcfun "rd_kafka_topic_partition_list_copy"
+    (:pointer (:struct rd-kafka-topic-partition-list))
+  (src (:pointer (:struct rd-kafka-topic-partition-list))))
 
 (defcfun "rd_kafka_topic_partition_list_set_offset" rd-kafka-resp-err
-  (rktparlist :pointer)
+  (rktparlist (:pointer (:struct rd-kafka-topic-partition-list)))
   (topic :string)
   (partition :int32)
   (offset :int64))
 
-(defcfun "rd_kafka_topic_partition_list_find" :pointer
-  (rktparlist :pointer)
+(defcfun "rd_kafka_topic_partition_list_find"
+    (:pointer (:struct rd-kafka-topic-partition))
+  (rktparlist (:pointer (:struct rd-kafka-topic-partition-list)))
   (topic :string)
   (partition :int32))
 
 (defcfun "rd_kafka_topic_partition_list_sort" :void
-  (rktparlist :pointer)
-  (cmp :pointer)
-  (opaque :pointer))
+  (rktparlist (:pointer (:struct rd-kafka-topic-partition-list)))
+  (cmp (:pointer :void))
+  (opaque (:pointer :void)))
 
 (defcenum rd-kafka-vtype
   rd-kafka-vtype-end
@@ -201,81 +205,87 @@
   rd-kafka-vtype-header
   rd-kafka-vtype-headers)
 
-(defcfun "rd_kafka_headers_new" :pointer
+;; because rd_kafka_headers_t is an opaque struct
+(defctype rd-kafka-headers :void)
+
+(defcfun "rd_kafka_headers_new" (:pointer rd-kafka-headers)
   (initial-count size-t))
 
 (defcfun "rd_kafka_headers_destroy" :void
-  (hdrs :pointer))
+  (hdrs (:pointer rd-kafka-headers)))
 
-(defcfun "rd_kafka_headers_copy" :pointer
-  (src :pointer))
+(defcfun "rd_kafka_headers_copy" (:pointer rd-kafka-headers)
+  (src (:pointer rd-kafka-headers)))
 
 (defcfun "rd_kafka_header_add" rd-kafka-resp-err
-  (hdrs :pointer)
+  (hdrs (:pointer rd-kafka-headers))
   (name :string)
   (name-size ssize-t)
-  (value :pointer)
+  (value (:pointer :void))
   (value-size ssize-t))
 
 (defcfun "rd_kafka_header_remove" rd-kafka-resp-err
-  (hdrs :pointer)
+  (hdrs (:pointer rd-kafka-headers))
   (name :string))
 
 (defcfun "rd_kafka_header_get_last" rd-kafka-resp-err
-  (hdrs :pointer)
+  (hdrs (:pointer rd-kafka-headers))
   (name :string)
-  (valuep :pointer)
-  (sizep :pointer))
+  (valuep (:pointer (:pointer :void)))
+  (sizep (:pointer size-t)))
 
 (defcfun "rd_kafka_header_get" rd-kafka-resp-err
-  (hdrs :pointer)
+  (hdrs (:pointer rd-kafka-headers))
   (idx size-t)
   (name :string)
-  (valuep :pointer)
-  (sizep :pointer))
+  (valuep (:pointer (:pointer :void)))
+  (sizep (:pointer size-t)))
 
 (defcfun "rd_kafka_header_get_all" rd-kafka-resp-err
-  (hdrs :pointer)
+  (hdrs (:pointer rd-kafka-headers))
   (idx size-t)
-  (namep :pointer)
-  (valuep :pointer)
-  (sizep :pointer))
+  (namep (:pointer :string))
+  (valuep (:pointer (:pointer :void)))
+  (sizep (:pointer size-t)))
+
+;; because rd_kafka_topic_t is an opaque struct
+(defctype rd-kafka-topic :void)
 
 (defcstruct rd-kafka-message
   (err rd-kafka-resp-err)
-  (rkt :pointer)
+  (rkt (:pointer rd-kafka-topic))
   (partition :int32)
-  (payload :pointer)
+  (payload (:pointer :void))
   (len size-t)
-  (key :pointer)
+  (key (:pointer :void))
   (key-len size-t)
   (offset :int64)
-  (private :pointer))
+  (private (:pointer :void)))
 
 (defcfun "rd_kafka_message_destroy" :void
-  (rkmessage :pointer))
+  (rkmessage (:pointer (:struct rd-kafka-message))))
 
 (defcfun "rd_kafka_message_timestamp" :int64
-  (rkmessage :pointer)
-  (tstype :pointer))
+  (rkmessage (:pointer (:struct rd-kafka-message)))
+  (tstype (:pointer rd-kafka-timestamp-type)))
 
 (defcfun "rd_kafka_message_latency" :int64
-  (rkmessage :pointer))
+  (rkmessage (:pointer (:struct rd-kafka-message))))
 
 (defcfun "rd_kafka_message_headers" rd-kafka-resp-err
-  (rkmessage :pointer)
-  (hdrsp :pointer))
+  (rkmessage (:pointer (:struct rd-kafka-message)))
+  (hdrsp (:pointer (:pointer rd-kafka-headers))))
 
 (defcfun "rd_kafka_message_detach_headers" rd-kafka-resp-err
-  (rkmessage :pointer)
-  (hdrsp :pointer))
+  (rkmessage (:pointer (:struct rd-kafka-message)))
+  (hdrsp (:pointer (:pointer rd-kafka-headers))))
 
 (defcfun "rd_kafka_message_set_headers" :void
-  (rkmessage :pointer)
-  (hdrs :pointer))
+  (rkmessage (:pointer (:struct rd-kafka-message)))
+  (hdrs (:pointer rd-kafka-headers)))
 
 (defcfun "rd_kafka_header_cnt" size-t
-  (hdrs :pointer))
+  (hdrs (:pointer rd-kafka-headers)))
 
 (defcenum rd-kafka-msg-status
   (rd-kafka-msg-status-not-persisted 0)
@@ -283,223 +293,232 @@
   (rd-kafka-msg-status-persisted 2))
 
 (defcfun "rd_kafka_message_status" rd-kafka-msg-status
-  (rkmessage :pointer))
+  (rkmessage (:pointer (:struct rd-kafka-message))))
 
 (defcenum rd-kafka-conf-res
   (rd-kafka-conf-unknown -2)
   (rd-kafka-conf-invalid -1)
   (rd-kafka-conf-ok 0))
 
-(defcfun "rd_kafka_conf_new" :pointer)
+;; because rd_kafka_conf_t is an opaque struct
+(defctype rd-kafka-conf :void)
+
+(defcfun "rd_kafka_conf_new" (:pointer rd-kafka-conf))
 
 (defcfun "rd_kafka_conf_destroy" :void
-  (conf :pointer))
+  (conf (:pointer rd-kafka-conf)))
 
-(defcfun "rd_kafka_conf_dup" :pointer
-  (conf :pointer))
+(defcfun "rd_kafka_conf_dup" (:pointer rd-kafka-conf)
+  (conf (:pointer rd-kafka-conf)))
 
-(defcfun "rd_kafka_conf_dup_filter" :pointer
-  (conf :pointer)
+(defcfun "rd_kafka_conf_dup_filter" (:pointer rd-kafka-conf)
+  (conf (:pointer rd-kafka-conf))
   (filter-cnt size-t)
-  (filter :pointer))
+  (filter (:pointer :string)))
 
 (defcfun "rd_kafka_conf_set" rd-kafka-conf-res
-  (conf :pointer)
+  (conf (:pointer rd-kafka-conf))
   (name :string)
   (value :string)
   (errstr :string)
   (errstr-size size-t))
 
 (defcfun "rd_kafka_conf_set_events" :void
-  (conf :pointer)
+  (conf (:pointer rd-kafka-conf))
   (events :int))
 
 (defcfun "rd_kafka_conf_set_background_event_cb" :void
-  (conf :pointer)
-  (event-cb :pointer))
+  (conf (:pointer rd-kafka-conf))
+  (event-cb (:pointer :void)))
 
 (defcfun "rd_kafka_conf_set_dr_cb" :void
-  (conf :pointer)
-  (dr-cb :pointer))
+  (conf (:pointer rd-kafka-conf))
+  (dr-cb (:pointer :void)))
 
 (defcfun "rd_kafka_conf_set_dr_msg_cb" :void
-  (conf :pointer)
-  (dr-msg-cb :pointer))
+  (conf (:pointer rd-kafka-conf))
+  (dr-msg-cb (:pointer :void)))
 
 (defcfun "rd_kafka_conf_set_consume_cb" :void
-  (conf :pointer)
-  (consume-db :pointer))
+  (conf (:pointer rd-kafka-conf))
+  (consume-db (:pointer :void)))
 
 (defcfun "rd_kafka_conf_set_rebalance_cb" :void
-  (conf :pointer)
-  (rebalance-cb :pointer))
+  (conf (:pointer rd-kafka-conf))
+  (rebalance-cb (:pointer :void)))
 
 (defcfun "rd_kafka_conf_set_offset_commit_cb" :void
-  (conf :pointer)
-  (offset-commit-cb :pointer))
+  (conf (:pointer rd-kafka-conf))
+  (offset-commit-cb (:pointer :void)))
 
 (defcfun "rd_kafka_conf_set_error_cb" :void
-  (conf :pointer)
-  (error-cb :pointer))
+  (conf (:pointer rd-kafka-conf))
+  (error-cb (:pointer :void)))
 
 (defcfun "rd_kafka_conf_set_throttle_cb" :void
-  (conf :pointer)
-  (throttle-cb :pointer))
+  (conf (:pointer rd-kafka-conf))
+  (throttle-cb (:pointer :void)))
 
 (defcfun "rd_kafka_conf_set_log_cb" :void
-  (conf :pointer)
-  (log-cb :pointer))
+  (conf (:pointer rd-kafka-conf))
+  (log-cb (:pointer :void)))
 
 (defcfun "rd_kafka_conf_set_stats_cb" :void
-  (conf :pointer)
-  (stats-cb :pointer))
+  (conf (:pointer rd-kafka-conf))
+  (stats-cb (:pointer :void)))
 
 (defcfun "rd_kafka_conf_set_socket_cb" :void
-  (conf :pointer)
-  (socket-cb :pointer))
+  (conf (:pointer rd-kafka-conf))
+  (socket-cb (:pointer :void)))
 
 (defcfun "rd_kafka_conf_set_connect_cb" :void
-  (conf :pointer)
-  (connect-cb :pointer))
+  (conf (:pointer rd-kafka-conf))
+  (connect-cb (:pointer :void)))
 
 (defcfun "rd_kafka_conf_set_closesocket_cb" :void
-  (conf :pointer)
-  (closesocker-cb :pointer))
+  (conf (:pointer rd-kafka-conf))
+  (closesocker-cb (:pointer :void)))
 
 (defcfun "rd_kafka_conf_set_open_cb" :void
-  (conf :pointer)
-  (open-cb :pointer))
+  (conf (:pointer rd-kafka-conf))
+  (open-cb (:pointer :void)))
 
 (defcfun "rd_kafka_conf_set_opaque" :void
-  (conf :pointer)
-  (opaque :pointer))
+  (conf (:pointer rd-kafka-conf))
+  (opaque (:pointer :void)))
 
-(defcfun "rd_kafka_opaque" :pointer
-  (rk :pointer))
+(defcfun "rd_kafka_opaque" (:pointer :void)
+  (rk (:pointer rd-kafka-type)))
+
+;; because rd_kafka_topic_conf_t is an opaque struct
+(defctype rd-kafka-topic-conf :void)
 
 (defcfun "rd_kafka_conf_set_default_topic_conf" :void
-  (conf :pointer)
-  (tconf :pointer))
+  (conf (:pointer rd-kafka-conf))
+  (tconf (:pointer rd-kafka-topic-conf)))
 
 (defcfun "rd_kafka_conf_get" rd-kafka-conf-res
-  (conf :pointer)
+  (conf (:pointer rd-kafka-conf))
   (name :string)
   (dest :string)
-  (dest-size :pointer))
+  (dest-size (:pointer size-t)))
 
 (defcfun "rd_kafka_topic_conf_get" rd-kafka-conf-res
-  (conf :pointer)
+  (conf (:pointer rd-kafka-topic-conf))
   (name :string)
   (dest :string)
-  (dest-size :pointer))
+  (dest-size (:pointer size-t)))
 
-(defcfun "rd_kafka_conf_dump" :pointer
-  (conf :pointer)
-  (cntp :pointer))
+(defcfun "rd_kafka_conf_dump" (:pointer :string)
+  (conf (:pointer rd-kafka-conf))
+  (cntp (:pointer size-t)))
 
-(defcfun "rd_kafka_topic_conf_dump" :pointer
-  (conf :pointer)
-  (cntp :pointer))
+(defcfun "rd_kafka_topic_conf_dump" (:pointer :string)
+  (conf (:pointer rd-kafka-topic-conf))
+  (cntp (:pointer size-t)))
 
 (defcfun "rd_kafka_conf_dump_free" :void
-  (arr :pointer)
+  (arr (:pointer :string))
   (cnt size-t))
 
 (defcfun "rd_kafka_conf_properties_show" :void
-  (fp :pointer))
+  (fp (:pointer :void)))
 
-(defcfun "rd_kafka_topic_conf_new" :pointer)
+(defcfun "rd_kafka_topic_conf_new" (:pointer rd-kafka-topic-conf))
 
-(defcfun "rd_kafka_topic_conf_dup" :pointer
-  (conf :pointer))
+(defcfun "rd_kafka_topic_conf_dup" (:pointer rd-kafka-topic-conf)
+  (conf (:pointer rd-kafka-topic-conf)))
 
-(defcfun "rd_kafka_default_topic_conf_dup" :pointer
-  (rk :pointer))
+(defcfun "rd_kafka_default_topic_conf_dup" (:pointer rd-kafka-topic-conf)
+  (rk (:pointer rd-kafka-type)))
 
 (defcfun "rd_kafka_topic_conf_destroy" :void
-  (topic-conf :pointer))
+  (topic-conf (:pointer rd-kafka-topic-conf)))
 
 (defcfun "rd_kafka_topic_conf_set" rd-kafka-conf-res
-  (conf :pointer)
+  (conf (:pointer rd-kafka-topic-conf))
   (name :string)
   (value :string)
   (errstr :string)
   (errstr-size size-t))
 
 (defcfun "rd_kafka_topic_conf_set_opaque" :void
-  (conf :pointer)
-  (opaque :pointer))
+  (conf (:pointer rd-kafka-topic-conf))
+  (opaque (:pointer :void)))
 
 (defcfun "rd_kafka_topic_conf_set_partitioner_cb" :void
-  (topic-conf :pointer)
-  (partitioner :pointer))
+  (topic-conf (:pointer rd-kafka-topic-conf))
+  (partitioner (:pointer :void)))
 
 (defcfun "rd_kafka_topic_conf_set_msg_order_cmp" :void
-  (topic-conf :pointer)
-  (msg-order-cmp :pointer))
+  (topic-conf (:pointer rd-kafka-topic-conf))
+  (msg-order-cmp (:pointer :void)))
 
 (defcfun "rd_kafka_topic_partition_available" :void
-  (rkt :pointer)
+  (rkt (:pointer rd-kafka-topic))
   (partition :int32))
 
 (defcfun "rd_kafka_msg_partitioner_random" :int32
-  (rkt :pointer)
-  (key :pointer)
+  (rkt (:pointer rd-kafka-topic))
+  (key (:pointer :void))
   (keylen size-t)
   (partition-cnt :int32)
-  (opaque :pointer)
-  (msg-options :pointer))
+  (opaque (:pointer :void))
+  (msg-options (:pointer :void)))
 
 (defcfun "rd_kafka_msg_partitioner_consistent" :int32
-  (rkt :pointer)
-  (key :pointer)
+  (rkt (:pointer rd-kafka-topic))
+  (key (:pointer :void))
   (keylen size-t)
   (partition-cnt :int32)
-  (opaque :pointer)
-  (msg-options :pointer))
+  (opaque (:pointer :void))
+  (msg-options (:pointer :void)))
 
 (defcfun "rd_kafka_msg_partitioner_consistent_random" :int32
-  (rkt :pointer)
-  (key :pointer)
+  (rkt (:pointer rd-kafka-topic))
+  (key (:pointer :void))
   (keylen size-t)
   (partition-cnt :int32)
-  (opaque :pointer)
-  (msg-opaque :pointer))
+  (opaque (:pointer :void))
+  (msg-opaque (:pointer :void)))
 
 (defcfun "rd_kafka_msg_partitioner_murmur2" :int32
-  (rkt :pointer)
-  (key :pointer)
+  (rkt (:pointer rd-kafka-topic))
+  (key (:pointer :void))
   (keylen size-t)
   (partition-cnt :int32)
-  (rkt-opaque :pointer)
-  (msg-opaque :pointer))
+  (rkt-opaque (:pointer :void))
+  (msg-opaque (:pointer :void)))
 
 (defcfun "rd_kafka_msg_partitioner_murmur2_random" :int32
-  (rkt :pointer)
-  (key :pointer)
+  (rkt (:pointer rd-kafka-topic))
+  (key (:pointer :void))
   (keylen size-t)
   (partition-cnt :int32)
-  (rkt-opaque :pointer)
-  (msg-options :pointer))
+  (rkt-opaque (:pointer :void))
+  (msg-options (:pointer :void)))
 
-(defcfun "rd_kafka_new" :pointer
+(defcfun "rd_kafka_new" (:pointer rd-kafka-type)
   (type rd-kafka-type)
-  (conf :pointer)
+  (conf (:pointer rd-kafka-conf))
   (errstr :string)
   (errstr-size size-t))
 
 (defcfun "rd_kafka_destroy" :void
-  (rk :pointer))
+  (rk (:pointer rd-kafka-type)))
 
 (defcfun "rd_kafka_destroy_flags" :void
-  (rk :pointer)
+  (rk (:pointer rd-kafka-type))
   (flags :int))
 
 (defcfun "rd_kafka_name" :string
-  (rk :pointer))
+  (rk (:pointer rd-kafka-type)))
 
+;; TODO pointer to rd-kafka-type should be a (:pointer :rd-kafka)
+;; where rd-kafka defctypes to :void
+;; this is because rd-kafka-type is an enum and rd-kafka is an opaque struct
 (defcfun "rd_kafka_type" rd-kafka-type
-  (rk :pointer))
+  (rk (:pointer rd-kafka-type)))
 
 (defcfun "rd_kafka_memberid" :string
   (rk :pointer))
